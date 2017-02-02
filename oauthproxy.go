@@ -58,6 +58,7 @@ type OAuthProxy struct {
 	HtpasswdFile        *HtpasswdFile
 	DisplayHtpasswdForm bool
 	serveMux            http.Handler
+	SetXAuthRequest     bool
 	PassBasicAuth       bool
 	SkipProviderButton  bool
 	BasicAuthPassword   string
@@ -193,6 +194,7 @@ func NewOAuthProxy(opts *Options, validator func(string) bool) *OAuthProxy {
 		redirectURL:        redirectURL,
 		skipAuthRegex:      opts.SkipAuthRegex,
 		compiledRegex:      opts.CompiledRegex,
+		SetXAuthRequest:    opts.SetXAuthRequest,
 		PassBasicAuth:      opts.PassBasicAuth,
 		BasicAuthPassword:  opts.BasicAuthPassword,
 		PassAccessToken:    opts.PassAccessToken,
@@ -335,6 +337,9 @@ func (p *OAuthProxy) SignInPage(rw http.ResponseWriter, req *http.Request, code 
 	rw.WriteHeader(code)
 
 	redirect_url := req.URL.RequestURI()
+	if req.Header.Get("X-Auth-Request-Redirect") != "" {
+		redirect_url = req.Header.Get("X-Auth-Request-Redirect")
+	}
 	if redirect_url == p.SignInPath {
 		redirect_url = "/"
 	}
@@ -600,6 +605,12 @@ func (p *OAuthProxy) Authenticate(rw http.ResponseWriter, req *http.Request) int
 		req.Header["X-Forwarded-User"] = []string{session.User}
 		if session.Email != "" {
 			req.Header["X-Forwarded-Email"] = []string{session.Email}
+		}
+	}
+	if p.SetXAuthRequest {
+		rw.Header().Set("X-Auth-Request-User", session.User)
+		if session.Email != "" {
+			rw.Header().Set("X-Auth-Request-Email", session.Email)
 		}
 	}
 	if p.PassAccessToken && session.AccessToken != "" {
